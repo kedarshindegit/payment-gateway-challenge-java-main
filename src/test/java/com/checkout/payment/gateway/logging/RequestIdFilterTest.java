@@ -43,9 +43,9 @@ class RequestIdFilterTest {
   void shouldGenerateARequestIdWhenNoneIsSent() throws Exception {
     filter.doFilter(new MockHttpServletRequest(), response, chain);
 
-    String generated = response.getHeader(RequestIdFilter.HEADER);
-    assertThat(UUID.fromString(generated)).isNotNull();
-    assertThat(idSeenByHandler.get()).isEqualTo(generated);
+    String assignedId = response.getHeader(RequestIdFilter.HEADER);
+    assertThat(UUID.fromString(assignedId)).isNotNull();
+    assertThat(idSeenByHandler.get()).isEqualTo(assignedId);
   }
 
   @ParameterizedTest
