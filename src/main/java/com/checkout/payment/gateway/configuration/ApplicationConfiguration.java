@@ -1,27 +1,16 @@
 package com.checkout.payment.gateway.configuration;
 
 import java.time.Clock;
-import java.time.Duration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.client.RestTemplate;
 
 @Configuration
-@EnableConfigurationProperties(PaymentProperties.class)
+@EnableConfigurationProperties({PaymentProperties.class, BankProperties.class})
 public class ApplicationConfiguration {
 
   @Bean
   public Clock clock() {
     return Clock.systemUTC();
-  }
-
-  @Bean
-  public RestTemplate restTemplate(RestTemplateBuilder builder) {
-    return builder
-        .setConnectTimeout(Duration.ofMillis(10000))
-        .setReadTimeout(Duration.ofMillis(10000))
-        .build();
   }
 }
