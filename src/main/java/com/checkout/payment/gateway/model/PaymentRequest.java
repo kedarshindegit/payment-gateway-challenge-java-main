@@ -23,6 +23,7 @@ public record PaymentRequest(
     Integer expiryMonth,
 
     @NotNull
+    @Max(9999)
     @Schema(example = "2030", description = "Month and year together must not be in the past")
     Integer expiryYear,
 

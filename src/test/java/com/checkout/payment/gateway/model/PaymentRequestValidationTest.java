@@ -132,6 +132,17 @@ class PaymentRequestValidationTest {
     assertThat(invalidFields(withExpiry(month, year))).containsExactly("expiryYear");
   }
 
+  @Test
+  void shouldAcceptExpiryYear9999() {
+    assertThat(invalidFields(withExpiry(12, 9999))).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {10000, 1_000_000_000, Integer.MAX_VALUE})
+  void shouldRejectExpiryYearAbove9999(int year) {
+    assertThat(invalidFields(withExpiry(12, year))).containsExactly("expiryYear");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"GBP", "USD", "EUR"})
   void shouldAcceptSupportedCurrency(String currency) {

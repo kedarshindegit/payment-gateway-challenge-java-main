@@ -86,7 +86,7 @@ Every error is an RFC 9457 Problem Details body (`application/problem+json`). A 
 |---|---|
 | `card_number` | Required, 14 to 19 digits |
 | `expiry_month` | Required, 1 to 12 |
-| `expiry_year` | Required. Month and year together must not be in the past |
+| `expiry_year` | Required, at most 9999. Month and year together must not be in the past |
 | `currency` | Required, one of the configured codes (`GBP`, `USD`, `EUR`) |
 | `amount` | Required, a positive whole number in the currency's minor unit |
 | `cvv` | Required, 3 or 4 digits |
@@ -125,7 +125,7 @@ All errors are reported at once, so a merchant can fix a request in one go.
 
 **Request ids.** Every response has an `X-Request-Id` header. If the caller sends one that is short and plain (`[A-Za-z0-9-]{1,64}`) I reuse it, otherwise I generate a UUID, so a caller cannot forge log lines through the header. The id is on every log line written while handling the request.
 
-**Logs.** Locally the logs are plain text with the request id after the level. In Docker (the `docker` profile) they are one JSON object per line in Logstash format, ready for a log platform to index.
+**Logs.** Locally the logs are plain text with the request id after the level. In Docker (the `docker` profile) they are one JSON object per line in Logstash format, ready for a log platform to index. Each processed payment is logged at INFO with its id and status, each rejected request with the names of the invalid fields (never their values), and bank failures at WARN.
 
 **Metrics** are exposed for Prometheus at `/actuator/prometheus`:
 

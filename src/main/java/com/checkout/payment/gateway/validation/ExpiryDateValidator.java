@@ -18,8 +18,9 @@ public class ExpiryDateValidator implements ConstraintValidator<ValidExpiryDate,
   public boolean isValid(PaymentRequest request, ConstraintValidatorContext context) {
     Integer month = request.expiryMonth();
     Integer year = request.expiryYear();
-    // Missing or out-of-range values are already reported by the field constraints.
-    if (month == null || year == null || month < 1 || month > 12) {
+    // Missing or out-of-range values are already reported by the field constraints. Skipping
+    // them also stops YearMonth from throwing on a year it cannot represent.
+    if (month == null || year == null || month < 1 || month > 12 || year > 9999) {
       return true;
     }
     if (!YearMonth.of(year, month).isBefore(YearMonth.now(clock))) {

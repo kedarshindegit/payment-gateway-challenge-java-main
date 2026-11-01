@@ -107,6 +107,8 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
   // payment_status.
   private ResponseEntity<Object> rejected(Exception ex, String detail, List<InvalidField> errors,
       HttpHeaders headers, WebRequest request) {
+
+    LOG.info("Payment rejected: {} {}", detail, errors.stream().map(InvalidField::field).toList());
     ProblemDetail body = problem(HttpStatus.BAD_REQUEST, "payment-rejected", "Payment rejected",
         detail);
     body.setProperty("payment_status", PaymentStatus.REJECTED.getName());

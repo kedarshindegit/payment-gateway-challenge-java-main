@@ -68,4 +68,27 @@ class SensitiveDataLoggingTest {
     assertThat(output).contains("[log-test-1]").contains("processed with status AUTHORIZED");
     assertThat(output).doesNotContain(CARD_NUMBER).doesNotContain("cvv=" + CVV);
   }
+
+  @Test
+  void shouldLogWhichFieldsRejectedAPaymentWithoutTheirValues(CapturedOutput output)
+      throws Exception {
+    String body = """
+        {"card_number": "%s", "expiry_month": 4, "expiry_year": 2020, "currency": "GBP",
+         "amount": 1050, "cvv": "%s"}
+        """.formatted(CARD_NUMBER, CVV);
+    URI payments = URI.create("http://localhost:" + port + "/payments");
+    HttpRequest request = HttpRequest.newBuilder(payments)
+        .header("Content-Type", "application/json")
+        .header(RequestIdFilter.HEADER, "log-test-2")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build();
+
+    HttpResponse<String> response = HttpClient.newHttpClient()
+        .send(request, HttpResponse.BodyHandlers.ofString());
+
+    assertThat(response.statusCode()).isEqualTo(400);
+    assertThat(output).contains("[log-test-2]")
+        .contains("Payment rejected: The payment request failed validation [expiry_year]");
+    assertThat(output).doesNotContain(CARD_NUMBER).doesNotContain("cvv=" + CVV);
+  }
 }
