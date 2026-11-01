@@ -145,6 +145,15 @@ class PaymentFlowIntegrationTest {
   }
 
   @Test
+  void shouldDocumentTheApiWithTheFieldNamesItActuallyUses() {
+    String apiDocs = http.getForObject("/v3/api-docs", String.class);
+
+    assertThat(apiDocs)
+        .contains("\"card_number\"", "\"card_number_last_four\"", "\"expiry_month\"")
+        .doesNotContain("\"cardNumber\"", "\"cardNumberLastFour\"");
+  }
+
+  @Test
   void shouldReturnNotFoundForUnknownPayment() {
     ResponseEntity<JsonNode> response = http.getForEntity("/payments/" + UUID.randomUUID(),
         JsonNode.class);

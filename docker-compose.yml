@@ -12,4 +12,18 @@ services:
       - type: bind
         source: ./imposters
         target: /imposters
-      
+    networks:
+      default:
+        # Java's HTTP client rejects host names containing "_", so the gateway uses this alias.
+        aliases:
+          - bank-simulator
+
+  payment_gateway:
+    container_name: payment_gateway
+    build: .
+    ports:
+      - "8090:8090"
+    environment:
+      BANK_BASE_URL: http://bank-simulator:8080
+    depends_on:
+      - bank_simulator
