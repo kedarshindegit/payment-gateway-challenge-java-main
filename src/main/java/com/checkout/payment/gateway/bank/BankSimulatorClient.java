@@ -2,6 +2,8 @@ package com.checkout.payment.gateway.bank;
 
 import com.checkout.payment.gateway.configuration.BankProperties;
 import com.checkout.payment.gateway.model.PaymentRequest;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
@@ -17,8 +19,11 @@ import org.springframework.web.client.RestTemplate;
 public class BankSimulatorClient implements AcquiringBank {
 
   private final RestTemplate restTemplate;
+  private final MeterRegistry meterRegistry;
 
-  public BankSimulatorClient(RestTemplateBuilder restTemplateBuilder, BankProperties properties) {
+  public BankSimulatorClient(RestTemplateBuilder restTemplateBuilder, BankProperties properties,
+      MeterRegistry meterRegistry) {
+    this.meterRegistry = meterRegistry;
     // The JDK client is chosen explicitly because the timeout handling below depends on the
     // exception types it throws. It is pinned to HTTP/1.1 because by default it tries to upgrade
     // plain-HTTP connections to HTTP/2, which servers handle inconsistently.
@@ -31,8 +36,24 @@ public class BankSimulatorClient implements AcquiringBank {
         .build();
   }
 
+  // One timer tagged by outcome gives both the bank's latency and how often it declines or fails.
   @Override
   public BankAuthorization authorize(PaymentRequest request) {
+    Timer.Sample sample = Timer.start(meterRegistry);
+    String outcome = "unavailable";
+    try {
+      BankAuthorization authorization = callBank(request);
+      outcome = authorization.authorized() ? "authorized" : "declined";
+      return authorization;
+    } catch (BankTimeoutException ex) {
+      outcome = "timeout";
+      throw ex;
+    } finally {
+      sample.stop(meterRegistry.timer("bank.authorizations", "outcome", outcome));
+    }
+  }
+
+  private BankAuthorization callBank(PaymentRequest request) {
     BankPaymentResponse response = send(BankPaymentRequest.from(request));
     if (response == null || response.authorized() == null) {
       throw new BankUnavailableException("Acquiring bank returned no authorisation result");
