@@ -14,6 +14,7 @@ import com.checkout.payment.gateway.configuration.BankProperties;
 import com.checkout.payment.gateway.model.PaymentRequest;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.URI;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,13 +31,14 @@ class BankSimulatorClientTest {
       .options(wireMockConfig().dynamicPort())
       .build();
 
+  private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
   private BankSimulatorClient client;
 
   @BeforeEach
   void createClient() {
     BankProperties properties = new BankProperties(
         URI.create(bank.baseUrl()), Duration.ofSeconds(1), READ_TIMEOUT);
-    client = new BankSimulatorClient(new RestTemplateBuilder(), properties);
+    client = new BankSimulatorClient(new RestTemplateBuilder(), properties, meterRegistry);
   }
 
   @Test
@@ -62,6 +64,7 @@ class BankSimulatorClientTest {
 
     assertThat(client.authorize(aRequest()))
         .isEqualTo(new BankAuthorization(true, "0bb07405-6d44-4b50-a14f-7ae0beff13ad"));
+    assertThat(callsRecordedWithOutcome("authorized")).isEqualTo(1);
   }
 
   @Test
@@ -70,6 +73,7 @@ class BankSimulatorClientTest {
         .willReturn(okJson("{\"authorized\": false, \"authorization_code\": \"\"}")));
 
     assertThat(client.authorize(aRequest()).authorized()).isFalse();
+    assertThat(callsRecordedWithOutcome("declined")).isEqualTo(1);
   }
 
   @Test
@@ -79,6 +83,7 @@ class BankSimulatorClientTest {
     assertThatThrownBy(() -> client.authorize(aRequest()))
         .isInstanceOf(BankUnavailableException.class)
         .hasMessageContaining("503");
+    assertThat(callsRecordedWithOutcome("unavailable")).isEqualTo(1);
   }
 
   @Test
@@ -99,6 +104,7 @@ class BankSimulatorClientTest {
 
     assertThatThrownBy(() -> client.authorize(aRequest()))
         .isInstanceOf(BankTimeoutException.class);
+    assertThat(callsRecordedWithOutcome("timeout")).isEqualTo(1);
   }
 
   @Test
@@ -114,7 +120,8 @@ class BankSimulatorClientTest {
   void shouldReportBankUnavailableWhenBankIsNotListening() {
     BankProperties nowhere = new BankProperties(
         URI.create("http://localhost:1"), Duration.ofSeconds(1), READ_TIMEOUT);
-    BankSimulatorClient unreachable = new BankSimulatorClient(new RestTemplateBuilder(), nowhere);
+    BankSimulatorClient unreachable =
+        new BankSimulatorClient(new RestTemplateBuilder(), nowhere, meterRegistry);
 
     assertThatThrownBy(() -> unreachable.authorize(aRequest()))
         .isInstanceOf(BankUnavailableException.class);
@@ -126,6 +133,10 @@ class BankSimulatorClientTest {
 
     assertThatThrownBy(() -> client.authorize(aRequest()))
         .isInstanceOf(BankUnavailableException.class);
+  }
+
+  private long callsRecordedWithOutcome(String outcome) {
+    return meterRegistry.get("bank.authorizations").tag("outcome", outcome).timer().count();
   }
 
   private static PaymentRequest aRequest() {

@@ -17,6 +17,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
@@ -24,8 +25,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+// Spring Boot switches metrics export off in tests unless asked, and the scrape test needs it.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = "bank.read-timeout=500ms")
+@AutoConfigureObservability(tracing = false)
 class PaymentFlowIntegrationTest {
 
   @RegisterExtension
@@ -44,7 +47,7 @@ class PaymentFlowIntegrationTest {
   @Test
   void shouldAuthorizeStoreAndRetrievePaymentWithoutTheFullCardNumber() {
     bank.stubFor(post("/payments").willReturn(okJson(
-        "{\"authorized\": true, \"authorization_code\": \"0bb07405-6d44-4b50-a14f-7ae0beff13ad\"}")));
+        "{\"authorized\": true, \"authorization_code\": \"auth-1\"}")));
 
     ResponseEntity<JsonNode> created = http.postForEntity("/payments",
         payment("2222405343248877"), JsonNode.class);
@@ -117,6 +120,28 @@ class PaymentFlowIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
     assertThat(response.getBody().get("type").asText()).isEqualTo("/problems/bank-timeout");
+  }
+
+  @Test
+  void shouldExposePaymentMetricsForPrometheus() {
+    bank.stubFor(post("/payments").willReturn(okJson(
+        "{\"authorized\": false, \"authorization_code\": \"\"}")));
+    http.postForEntity("/payments", payment("2222405343248878"), JsonNode.class);
+
+    ResponseEntity<String> scrape = http.getForEntity("/actuator/prometheus", String.class);
+
+    assertThat(scrape.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(scrape.getBody())
+        .contains("bank_authorizations_seconds_count{outcome=\"declined\"")
+        .contains("http_server_requests_seconds_bucket");
+  }
+
+  @Test
+  void shouldReportLiveAndReady() {
+    assertThat(http.getForEntity("/actuator/health/liveness", String.class).getBody())
+        .contains("\"status\":\"UP\"");
+    assertThat(http.getForEntity("/actuator/health/readiness", String.class).getBody())
+        .contains("\"status\":\"UP\"");
   }
 
   @Test
